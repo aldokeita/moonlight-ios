@@ -25,8 +25,9 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Download iOS platform
-        run: xcodebuild -downloadPlatform iOS
+      # No -downloadPlatform step: that fetches the simulator runtime, which a device build
+      # doesn't use, and it fails outright when the runner can't reach the simulator service.
+      # The iphoneos SDK ships with Xcode itself.
 
       # Signing is switched off entirely, including the upstream DEVELOPMENT_TEAM, which belongs
       # to the Moonlight developers and would otherwise make xcodebuild look for their profiles.
