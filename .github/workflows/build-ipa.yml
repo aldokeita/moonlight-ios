@@ -1,0 +1,59 @@
+name: Build IPA
+
+# Builds an unsigned device .ipa for sideloading (Sideloadly, AltStore). The upstream CI only
+# builds for the simulator, which produces nothing that can be installed on a real iPad.
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    name: Build unsigned IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Download iOS platform
+        run: xcodebuild -downloadPlatform iOS
+
+      # Signing is switched off entirely, including the upstream DEVELOPMENT_TEAM, which belongs
+      # to the Moonlight developers and would otherwise make xcodebuild look for their profiles.
+      # The sideloading tool re-signs the app with the installer's own Apple ID.
+      - name: Build
+        run: |
+          xcodebuild \
+            -project Moonlight.xcodeproj \
+            -scheme Moonlight \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Moonlight.app Payload/
+          zip -qry "Moonlight-${GITHUB_SHA::7}-unsigned.ipa" Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: Moonlight-unsigned-ipa
+          path: Moonlight-*-unsigned.ipa
+          if-no-files-found: error
